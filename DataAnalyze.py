@@ -6,6 +6,7 @@ import time
 import threading
 import queue
 import logging
+import requests
 from collections import deque
 
 # ————— 静态报警阈值配置 —————
@@ -73,7 +74,7 @@ class ECG_Analyzer:
         self.dynamic_t_high = ALERT_THRESHOLDS['t_amplitude_high']
 
         # —— 正常测量模式判定 ——
-        self.normal_mode       = False                     # 是否已进入正常测量模式
+        self.normal_mode       = True                     # 是否已进入正常测量模式
         self.hr_window         = deque(maxlen=DYNAMIC_WINDOW_SIZE)    # 最近心率值
         self.pt_ratio_window   = deque(maxlen=DYNAMIC_WINDOW_SIZE)    # 最近 P/T 幅度比
 
@@ -99,6 +100,12 @@ class ECG_Analyzer:
         self._init_logger()
         self.analysis_thread = threading.Thread(target=self._analysis_worker, daemon=True)
         self.analysis_thread.start()
+
+        # —— 报警和反报警计算 ——
+        self.alarmCount      = {}
+        self.antiAlarmCount  = {}
+        self.url             = "https://4xz8355786.zicp.fun/input"
+        self.problemToDigit  = {"心动过缓":0,"心动过速":1,"P波过低":2,"P波过高":3,"T波过低":4,"T波过高":5,"基线漂移":6,"心律不齐":7}
 
     def _init_logger(self):
         """配置 logging（输出到控制台），并创建报警日志文件 header"""
@@ -396,8 +403,10 @@ class ECG_Analyzer:
             if not self.paused and self.alert_callback:
                 self.alert_callback(alert)
                 logging.info(f"[ALERT] {alert_type} | {message}")
+                requests.get(self.url + "?val=" + str(self.problemToDigit[alert_type]))
             elif not self.paused:
                 print("[ANALYZER ALERT]", alert_type, message)
+                requests.get(self.url + "?val=" + str(self.problemToDigit[alert_type]))
 
     def get_recent_alerts(self, count=5):
         """获取最近的 count 条报警记录"""
